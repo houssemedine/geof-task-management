@@ -1,8 +1,7 @@
-# GF Task Management - Document d'explication (FR)
-
+# GEOF Task Management
 ## 1. Objectif du projet
 
-Ce projet implemente un backend de gestion de taches en microservices.
+Le projet implemente un backend de gestion de taches en microservices.
 Le systeme couvre:
 
 - authentification JWT
@@ -102,10 +101,6 @@ Avantage:
 
 - lecture rapide pour listing/analytics
 - ecriture isolee des contraintes de presentation
-
-Trade-off:
-
-- coherence eventuale (un ecrit peut etre visible cote read apres un court delai)
 
 ## 4.5 Fiabilite des events
 
