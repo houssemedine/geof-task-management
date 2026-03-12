@@ -1,0 +1,173 @@
+services:
+  api-gateway:
+    build:
+      context: ./api-gateway
+    container_name: api-gateway
+    environment:
+      SERVICE_NAME: api-gateway
+      IDENTITY_SERVICE_URL: http://identity-service:8000
+      TASK_SERVICE_URL: http://task-service:8000
+      QUERY_SERVICE_URL: http://query-service:8000
+      JWT_SECRET_KEY: dev-secret-change-me
+      JWT_ALGORITHM: HS256
+      JWT_ISSUER: identity-service
+      JWT_AUDIENCE: gf-task-management
+      RATE_LIMIT_REQUESTS_PER_MINUTE: "120"
+      UPSTREAM_TIMEOUT_SECONDS: "15"
+    ports:
+      - "8000:8000"
+    depends_on:
+      identity-service:
+        condition: service_started
+      task-service:
+        condition: service_started
+      query-service:
+        condition: service_started
+
+  rabbitmq:
+    image: rabbitmq:3.13-management-alpine
+    container_name: rabbitmq
+    environment:
+      RABBITMQ_DEFAULT_USER: app_user
+      RABBITMQ_DEFAULT_PASS: app_password
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  identity-db:
+    image: postgres:16-alpine
+    container_name: identity-db
+    environment:
+      POSTGRES_DB: identity_db
+      POSTGRES_USER: identity_user
+      POSTGRES_PASSWORD: identity_password
+    ports:
+      - "5433:5432"
+    volumes:
+      - identity_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U identity_user -d identity_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  task-db:
+    image: postgres:16-alpine
+    container_name: task-db
+    environment:
+      POSTGRES_DB: task_db
+      POSTGRES_USER: task_user
+      POSTGRES_PASSWORD: task_password
+    ports:
+      - "5434:5432"
+    volumes:
+      - task_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U task_user -d task_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  query-db:
+    image: postgres:16-alpine
+    container_name: query-db
+    environment:
+      POSTGRES_DB: query_db
+      POSTGRES_USER: query_user
+      POSTGRES_PASSWORD: query_password
+    ports:
+      - "5435:5432"
+    volumes:
+      - query_db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U query_user -d query_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  identity-service:
+    build:
+      context: ./identity-service
+    container_name: identity-service
+    environment:
+      SERVICE_NAME: identity-service
+      DATABASE_URL: postgresql+psycopg://identity_user:identity_password@identity-db:5432/identity_db
+      JWT_SECRET_KEY: dev-secret-change-me
+      JWT_ALGORITHM: HS256
+      JWT_ISSUER: identity-service
+      JWT_AUDIENCE: gf-task-management
+      JWT_ACCESS_TOKEN_EXPIRES_SECONDS: 900
+    ports:
+      - "8001:8000"
+    command: >
+      sh -c "alembic -c alembic.ini upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      identity-db:
+        condition: service_healthy
+
+  task-service:
+    build:
+      context: ./task-service
+    container_name: task-service
+    environment:
+      SERVICE_NAME: task-service
+      DATABASE_URL: postgresql+psycopg://task_user:task_password@task-db:5432/task_db
+      JWT_SECRET_KEY: dev-secret-change-me
+      JWT_ALGORITHM: HS256
+      JWT_ISSUER: identity-service
+      JWT_AUDIENCE: gf-task-management
+      RABBITMQ_URL: amqp://app_user:app_password@rabbitmq:5672/%2F
+      RABBITMQ_EXCHANGE: task.events
+      PUBLISH_EVENTS: "true"
+      OUTBOX_BATCH_SIZE: "50"
+      OUTBOX_PUBLISH_INTERVAL_SECONDS: "2"
+      OUTBOX_MAX_ATTEMPTS: "5"
+    ports:
+      - "8002:8000"
+    command: >
+      sh -c "alembic -c alembic.ini upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      task-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+  query-service:
+    build:
+      context: ./query-service
+    container_name: query-service
+    environment:
+      SERVICE_NAME: query-service
+      DATABASE_URL: postgresql+psycopg://query_user:query_password@query-db:5432/query_db
+      JWT_SECRET_KEY: dev-secret-change-me
+      JWT_ALGORITHM: HS256
+      JWT_ISSUER: identity-service
+      JWT_AUDIENCE: gf-task-management
+      RABBITMQ_URL: amqp://app_user:app_password@rabbitmq:5672/%2F
+      RABBITMQ_EXCHANGE: task.events
+      RABBITMQ_QUEUE: query.tasks
+      RABBITMQ_DLQ_QUEUE: query.tasks.dlq
+      CONSUMER_MAX_RETRIES: "3"
+      ENABLE_EVENT_CONSUMER: "true"
+    ports:
+      - "8003:8000"
+    command: >
+      sh -c "alembic -c alembic.ini upgrade head &&
+             uvicorn app.main:app --host 0.0.0.0 --port 8000"
+    depends_on:
+      query-db:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_healthy
+
+volumes:
+  identity_db_data:
+  task_db_data:
+  query_db_data:
