@@ -33,12 +33,22 @@ class Task(Base):
     title: Mapped[str] = mapped_column(String(255), nullable=False)
     description: Mapped[str | None] = mapped_column(Text, nullable=True)
     status: Mapped[TaskStatus] = mapped_column(
-        SAEnum(TaskStatus, name="task_status"),
+        SAEnum(
+            TaskStatus,
+            name="task_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            validate_strings=True,
+        ),
         default=TaskStatus.OPEN,
         nullable=False,
     )
     priority: Mapped[TaskPriority] = mapped_column(
-        SAEnum(TaskPriority, name="task_priority"),
+        SAEnum(
+            TaskPriority,
+            name="task_priority",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            validate_strings=True,
+        ),
         default=TaskPriority.MEDIUM,
         nullable=False,
     )

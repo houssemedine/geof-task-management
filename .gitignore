@@ -1,0 +1,41 @@
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Python bytecode and caches
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+*/.venv/
+*/venv/
+
+# Test / coverage artifacts
+.coverage
+.coverage.*
+htmlcov/
+
+# Build artifacts
+build/
+dist/
+*.egg-info/
+
+# Local env files
+.env
+.env.*
+
+# Logs
+*.log
+
+# Local SQLite databases
+*.db
+*.sqlite
+*.sqlite3

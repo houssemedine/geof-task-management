@@ -39,7 +39,12 @@ class OutboxEvent(Base):
         server_default=func.now(),
     )
     status: Mapped[OutboxStatus] = mapped_column(
-        SAEnum(OutboxStatus, name="outbox_status"),
+        SAEnum(
+            OutboxStatus,
+            name="outbox_status",
+            values_callable=lambda enum_cls: [member.value for member in enum_cls],
+            validate_strings=True,
+        ),
         nullable=False,
         default=OutboxStatus.PENDING,
     )
